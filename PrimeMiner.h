@@ -29,6 +29,8 @@ public:
     static PrimeMiner& getInstance();
 
     static void destruct();
+
+    PrimeMiner(const PrimeMiner&) = delete;
 };
 
 
