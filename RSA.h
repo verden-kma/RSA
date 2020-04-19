@@ -13,15 +13,28 @@ using uint = unsigned int;
 class RSA {
 private:
     static const uint ePool[];
+
     static bool peekFromPool(BigInt& e, const BigInt& phi);
+
+    static bool testRabinMiller(const BigInt& n);
+
+    /**
+ * get last set bit so that there is no need to iterate through leftmost 0s
+ * @param bitset representation of exponent
+ * @return last set bit
+ */
+    static uint getLastBit(const std::bitset<sizeof(BigInt) * 8>& exponent);
+
+    static BigInt powerMod(const BigInt& N, const BigInt& base, const std::bitset<sizeof(BigInt) * 8>& exponent, const uint& lastSet);
+
 public:
-
-    static BigInt powerMod(const BigInt& N, const BigInt& base, const std::bitset<sizeof(BigInt)*8>& exponent, const uint& lastSet);
-
     RSA() = delete;
+
     static void generateKeys(BigInt& N, BigInt& e, BigInt& d);
+
     static BigInt* encrypt(const BigInt& N, const BigInt& e, const char* message);
-    static const char* decrypt(const BigInt& N, const BigInt& d, const char* ciphertext);
+
+    static char* decrypt(const BigInt& N, const BigInt& d, const BigInt* ciphertext, const size_t& length);
 };
 
 

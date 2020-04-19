@@ -2,8 +2,18 @@
 #include "PrimeMiner.h"
 #include "RSA.h"
 #include <bitset>
+#include <cstring>
 
 using namespace std;
+
+int power(const int base, const int exponent, const int mod) {
+    int res = 1;
+    for (int i = 0; i < exponent; i++) {
+        res *= base;
+        res %= mod;
+    }
+    return res;
+}
 
 int main() {
 //    PrimeMiner& pm = PrimeMiner::getInstance();
@@ -18,27 +28,34 @@ int main() {
 
 //    cout << RSA::logPow(3, 9) << endl;
 
-//    BigInt N, e, d;
-//    RSA::generateKeys(N, e, d);
-//    cout << N << endl;
-//    cout << e << endl;
-//    cout << d << endl;
+    BigInt N, e, d;
+    RSA::generateKeys(N, e, d);
+    cout << "N = " << N << endl;
+    cout << "e = " << e << endl;
+    cout << "d = " << d << endl;
 
+    string secret = "my secret";
+    char arrSecret[secret.length()];
+    strcpy(arrSecret, secret.c_str());
+    auto c = RSA::encrypt(N, e, arrSecret);
+    cout << "E: " << *c << endl;
+    char* m = RSA::decrypt(N, d, c, secret.length());
+    cout << m << endl;
 
+//    BigInt N = 538296929;
+//    BigInt base = 65;
+//    BigInt exp = 65537;
+//    bitset<64> expBS(exp);
+//    cout << RSA::powerMod(N, base, expBS, RSA::getLastBit(expBS)) << endl;
 
-    unsigned long long exp = 16971;
-    bitset<sizeof(exp) * 8> ebs(exp);
-    size_t lastBit = 0;
-    // get last set bit so that there is no need to iterate through leftmost 0s
-    for (size_t i = 0; i < ebs.size(); i++) {
-        if (ebs[i]) lastBit = i;
-    }
+//BigInt phi = (1905598061 - 1) * (3590304131 - 1);
+//BigInt e = 65537;
+//BigInt q = 2780153;
+//
+//    //cout << (17 * 2753 % (60 * 52) == 1) << endl;
+//    cout << (e * q % (phi) == 1) << endl;
 
-    cout << ebs << endl;
+//    for (int i = 0; i < 1; i++)
+//        cout << "is prime: " << !RSA::testRabinMiller(3590304121) << endl;
 
-    cout << RSA::powerMod(25777, 24465, ebs, lastBit) << endl;
-
-//    unsigned long long exp = 50;
-//    bitset< sizeof(exp)> ebs (exp);
-//    cout << RSA::powerMod(17, 2, ebs, ebs.size()) << endl;
 }

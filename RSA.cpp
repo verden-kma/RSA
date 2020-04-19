@@ -8,25 +8,47 @@
 
 #include <unordered_map>
 #include <map>
+#include <iostream>
 #include "RSA.h"
 #include "PrimeMiner.h"
 
 using namespace std;
 
-const uint RSA::ePool[] = {5, 17, 257, 65537};
+const uint RSA::ePool[] = {65537, 257, 17, 5};
 
 void RSA::generateKeys(BigInt& N, BigInt& e, BigInt& d) {
     std::random_device dev;
     std::default_random_engine generator(dev());
-    std::uniform_int_distribution<unsigned int> distribution(UINT_MAX / 10, UINT_MAX);
-    unsigned int p = distribution(generator);
-    unsigned int q = distribution(generator);
+    std::uniform_int_distribution<BigInt> distribution(UINT_MAX >> sizeof(UINT_MAX) * 8 * 5 / 8, // use 12
+                                                       UINT_MAX >> sizeof(UINT_MAX) * 8 / 2); // use 16
+    BigInt p = distribution(generator), q = distribution(generator);
+
+    int testsPassed = 0;
+    while (testsPassed < 64) {
+        if (testRabinMiller(p)) {
+            p++;
+            testsPassed = 0;
+        } else testsPassed++;
+    }
+    testsPassed = 0;
+
+    while (testsPassed < 64) {
+        if (testRabinMiller(q)) {
+            q++;
+            testsPassed = 0;
+        } else testsPassed++;
+    }
+
     N = p * q;
     BigInt phi = (p - 1) * (q - 1);
+    cout << "p = " << p << endl;
+    cout << "q = " << q << endl;
+    cout << "phi = " << phi << endl;
+
 
     if (!peekFromPool(e, phi)) {
         PrimeMiner& pm = PrimeMiner::getInstance();
-        unsigned int edge = 100;
+        uint edge = 100;
         pm.fillPrimesUpTo(edge);
         set<BigInt>::iterator iter = pm.currPrimes().begin();
         ++iter; // skip 2
@@ -47,23 +69,20 @@ void RSA::generateKeys(BigInt& N, BigInt& e, BigInt& d) {
 
     // e * d (mod phi) = 1
     d = 1ULL;
-    while (d % e != 0) {
+    while (d % e != 0)
         d += phi;
-    }
+
     d /= e;
     assert(d != 0 && d != phi);
-    while (d > phi) d -= phi;
+    d %= phi;
+    assert(e * d % phi == 1);
 }
 
 BigInt* RSA::encrypt(const BigInt& N, const BigInt& e, const char* message) {
     BigInt length = strlen(message);
     BigInt* ciphertext = new BigInt[length];
     bitset<sizeof(BigInt) * 8> encryptor(e);
-    size_t lastBit = 0;
-    // get last set bit so that there is no need to iterate through leftmost 0s
-    for (size_t i = 0; i < encryptor.size(); i++) {
-        if (encryptor[i]) lastBit = i;
-    }
+    size_t lastBit = getLastBit(encryptor);
     unordered_map<char, BigInt> charCodes;
     for (BigInt i = 0; i < length; i++) {
         if (charCodes.find(message[i]) == charCodes.end()) {
@@ -74,9 +93,31 @@ BigInt* RSA::encrypt(const BigInt& N, const BigInt& e, const char* message) {
     return ciphertext;
 }
 
+char* RSA::decrypt(const BigInt& N, const BigInt& d, const BigInt* ciphertext, const size_t& length) {
+    char* plainText = new char[length + 1];
+    bitset<sizeof(BigInt) * 8> decryptor(d);
+    size_t lastBit = getLastBit(decryptor);
+    unordered_map<BigInt, char> charCodes;
+    for (BigInt i = 0; i < length; i++) {
+        if (charCodes.find(ciphertext[i]) == charCodes.end()) {
+            charCodes[ciphertext[i]] = powerMod(N, ciphertext[i], decryptor, lastBit);
+        }
+        plainText[i] = charCodes.find(ciphertext[i])->second;
+    }
+    plainText[length] = '\0';
+    return plainText;
+}
+
+BigInt gcd(BigInt a, BigInt b) {
+    while (a != b)
+        if (a > b) a -= b;
+        else b -= a;
+    return a;
+}
+
 bool RSA::peekFromPool(BigInt& e, const BigInt& phi) {
-    for (unsigned int i : ePool)
-        if (phi % i != 0 && i % phi != 0) {
+    for (uint i : ePool)
+        if (gcd(phi, i) == 1) {
             e = i;
             return true;
         }
@@ -84,41 +125,41 @@ bool RSA::peekFromPool(BigInt& e, const BigInt& phi) {
     return false;
 }
 
-BigInt logPowerMod(BigInt base, BigInt n, const BigInt& mod) {
-    BigInt y = 1;
-    while (n > 0)
-        if (n & 0x1u) {
-            --n;
-            y *= base;
-            y %= mod;
-        } else {
-            n >>= 0x1u;
-            base *= base;
-            base %= mod;
-        }
-    return y;
-}
-
-BigInt RSA::powerMod(const BigInt& N, const BigInt& base, const bitset<sizeof(BigInt)*8>& exponent, const uint& lastBit) {
-    BigInt res = 1;
-    map<BigInt, BigInt> powers; // power of 2 - value of number to the power of power of 2
-    for (size_t i = 0; i <= lastBit; i++) {
+BigInt
+RSA::powerMod(const BigInt& N, const BigInt& base, const bitset<sizeof(BigInt) * 8>& exponent, const uint& lastBit) {
+    BigInt res = exponent[0] ? base : 1;
+    BigInt currValue = base;
+    for (size_t i = 1; i <= lastBit; i++) {
+        currValue = (currValue * currValue) % N;
         if (exponent[i]) {
-            BigInt accumulator = 1;
-            auto utilizer = powers.rbegin();
-            BigInt currPow = 1ULL << i;
-            if (utilizer != powers.rend()) {
-                uint mults = currPow / utilizer->first;
-                for (uint j = 0; j < mults; j++) {
-                    accumulator *= utilizer->second;
-                    accumulator %= N;
-                }
-            }
-            else accumulator *= logPowerMod(base, currPow, N);
-            powers[1ULL << i] = accumulator;
-            res *= accumulator;
+            res *= currValue;
             res %= N;
         }
     }
     return res;
+}
+
+bool RSA::testRabinMiller(const BigInt& n) {
+    const BigInt pred = n - 1;
+    uint k = 0;
+    while (pred % (1u << ++k) == 0);
+    BigInt m = pred / 1u << --k;
+    uint a = rand() % (pred - 2) + 2;
+
+    bitset<sizeof(BigInt) * 8> bsm(m);
+    BigInt b0 = powerMod(n, a, bsm, getLastBit(bsm));
+    if (b0 == 1 || b0 == pred) return false;
+    BigInt b1 = (b0 * b0) % n;
+    for (int i = 0; i < 10; i++)
+        if (b1 == 1) return true;
+        else if (b1 == pred) return false;
+    return true; // if no useful results provided, assume it is not prime
+}
+
+uint RSA::getLastBit(const std::bitset<sizeof(BigInt) * 8>& exponent) {
+    size_t lastBit = 0;
+    for (size_t i = 0; i < exponent.size(); i++) {
+        if (exponent[i]) lastBit = i;
+    }
+    return lastBit;
 }
