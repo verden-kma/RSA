@@ -5,6 +5,8 @@
 #ifndef PROJECTOOP_RSA_H
 #define PROJECTOOP_RSA_H
 
+#include <bitset>
+
 using BigInt = unsigned long long;
 using uint = unsigned int;
 
@@ -13,6 +15,8 @@ private:
     static const uint ePool[];
     static bool peekFromPool(BigInt& e, const BigInt& phi);
 public:
+    static BigInt powerMod(const BigInt& N, const BigInt& base, const std::bitset<sizeof(BigInt)>& exponent, const uint& lastSet);
+
     RSA() = delete;
     static void generateKeys(BigInt& N, BigInt& e, BigInt& d);
     static BigInt* encrypt(const BigInt& N, const BigInt& e, const char* message);

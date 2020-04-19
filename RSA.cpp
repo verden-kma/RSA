@@ -5,7 +5,7 @@
 #include <random>
 #include <cassert>
 #include <cstring>
-#include <bitset>
+
 #include <unordered_map>
 #include <map>
 #include "RSA.h"
@@ -44,8 +44,8 @@ void RSA::generateKeys(BigInt& N, BigInt& e, BigInt& d) {
         }
         e = *iter;
     }
-    // e * d (mod phi) = 1
 
+    // e * d (mod phi) = 1
     d = 1ULL;
     while (d % e != 0) {
         d += phi;
@@ -55,49 +55,74 @@ void RSA::generateKeys(BigInt& N, BigInt& e, BigInt& d) {
     while (d > phi) d -= phi;
 }
 
-double logPower(double x, unsigned int n) {
-    double y = 1;
-    while (n > 0)
-        if (n & 0x1u) {
-            n--;
-            y *= x;
-        } else {
-            n >>= 0x1u;
-            x *= x;
-        }
-    return x;
-}
-
 BigInt* RSA::encrypt(const BigInt& N, const BigInt& e, const char* message) {
     BigInt length = strlen(message);
     BigInt* ciphertext = new BigInt[length];
-    bitset<sizeof(BigInt)> exponent(e);
+    bitset<sizeof(BigInt)> encryptor(e);
     size_t lastBit = 0;
     // get last set bit so that there is no need to iterate through leftmost 0s
-    for (size_t i = 0; i < exponent.size(); i++) {
-        if (exponent[i]) lastBit = i;
+    for (size_t i = 0; i < encryptor.size(); i++) {
+        if (encryptor[i]) lastBit = i;
     }
-    unordered_map<const char, BigInt> charCodes; // cache
+    unordered_map<char, BigInt> charCodes;
     for (BigInt i = 0; i < length; i++) {
-        // check if charCodes does not contain this char
-        map<uint, BigInt> powers; // power of 2 - value of number to the power of power of 2
-        for (size_t j = 0; j < lastBit; j++) {
-            if (exponent[j]) {
-// if powers contains any values, use the biggest cache for as many times as possible, then move on to small cached value,
-// go on until cache is exhausted, then use logarithmic power
-            }
+        if (charCodes.find(message[i]) == charCodes.end()) {
+            charCodes[message[i]] = powerMod(N, message[i], encryptor, lastBit);
         }
-        charCodes.insert(message[i], -1);
+        ciphertext[i] = charCodes.find(message[i])->second;
     }
     return ciphertext;
 }
 
 bool RSA::peekFromPool(BigInt& e, const BigInt& phi) {
-    for (int i = 0; i < sizeof(ePool) / sizeof(*ePool); i++)
-        if (phi % ePool[i] != 0 && ePool[i] % phi != 0) {
-            e = ePool[i];
+    for (unsigned int i : ePool)
+        if (phi % i != 0 && i % phi != 0) {
+            e = i;
             return true;
         }
 
     return false;
+}
+
+BigInt logPowerMod(BigInt x, BigInt n, const BigInt& mod) {
+    BigInt y = 1;
+    while (n > 0)
+        if (n & 0x1u) {
+            n--;
+            y *= x;
+            y %= mod;
+        } else {
+            n >>= 0x1u;
+            x *= x;
+            x %= mod;
+        }
+    return x * y;
+}
+
+BigInt RSA::powerMod(const BigInt& N, const BigInt& base, const bitset<sizeof(BigInt)>& exponent, const uint& lastBit) {
+    BigInt res = 1;
+    map<BigInt, BigInt> powers; // power of 2 - value of number to the power of power of 2
+    for (size_t i = 0; i < lastBit; i++) {
+        if (exponent[i]) {
+            BigInt accumulator = 1;
+            auto utilizer = powers.rbegin();
+            BigInt currPow = 1ULL << i;
+            while (utilizer != powers.rend()) {
+                uint mults = currPow / utilizer->first;
+                for (uint j = 0; j < mults; j++) {
+                    accumulator *= utilizer->second;
+                    accumulator %= N;
+                }
+                assert(currPow%utilizer->first == currPow - mults*utilizer->first);
+                currPow %= utilizer->first;
+                ++utilizer;
+            }
+            accumulator *= logPowerMod(base, currPow, N);
+            res %= N;
+            powers[1ULL << i] = accumulator;
+            res *= accumulator;
+            res %= N;
+        }
+    }
+    return res;
 }
