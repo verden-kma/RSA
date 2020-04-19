@@ -23,7 +23,22 @@ int main() {
 //    cout << N << endl;
 //    cout << e << endl;
 //    cout << d << endl;
+
+
+
     unsigned long long exp = 16971;
-    bitset< sizeof(exp)> ebs (exp);
-    cout << RSA::powerMod(25777, 18524, ebs, ebs.size()) << endl;
+    bitset<sizeof(exp) * 8> ebs(exp);
+    size_t lastBit = 0;
+    // get last set bit so that there is no need to iterate through leftmost 0s
+    for (size_t i = 0; i < ebs.size(); i++) {
+        if (ebs[i]) lastBit = i;
+    }
+
+    cout << ebs << endl;
+
+    cout << RSA::powerMod(25777, 24465, ebs, lastBit) << endl;
+
+//    unsigned long long exp = 50;
+//    bitset< sizeof(exp)> ebs (exp);
+//    cout << RSA::powerMod(17, 2, ebs, ebs.size()) << endl;
 }

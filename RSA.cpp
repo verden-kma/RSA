@@ -58,7 +58,7 @@ void RSA::generateKeys(BigInt& N, BigInt& e, BigInt& d) {
 BigInt* RSA::encrypt(const BigInt& N, const BigInt& e, const char* message) {
     BigInt length = strlen(message);
     BigInt* ciphertext = new BigInt[length];
-    bitset<sizeof(BigInt)> encryptor(e);
+    bitset<sizeof(BigInt) * 8> encryptor(e);
     size_t lastBit = 0;
     // get last set bit so that there is no need to iterate through leftmost 0s
     for (size_t i = 0; i < encryptor.size(); i++) {
@@ -84,41 +84,37 @@ bool RSA::peekFromPool(BigInt& e, const BigInt& phi) {
     return false;
 }
 
-BigInt logPowerMod(BigInt x, BigInt n, const BigInt& mod) {
+BigInt logPowerMod(BigInt base, BigInt n, const BigInt& mod) {
     BigInt y = 1;
     while (n > 0)
         if (n & 0x1u) {
-            n--;
-            y *= x;
+            --n;
+            y *= base;
             y %= mod;
         } else {
             n >>= 0x1u;
-            x *= x;
-            x %= mod;
+            base *= base;
+            base %= mod;
         }
-    return x * y;
+    return y;
 }
 
-BigInt RSA::powerMod(const BigInt& N, const BigInt& base, const bitset<sizeof(BigInt)>& exponent, const uint& lastBit) {
+BigInt RSA::powerMod(const BigInt& N, const BigInt& base, const bitset<sizeof(BigInt)*8>& exponent, const uint& lastBit) {
     BigInt res = 1;
     map<BigInt, BigInt> powers; // power of 2 - value of number to the power of power of 2
-    for (size_t i = 0; i < lastBit; i++) {
+    for (size_t i = 0; i <= lastBit; i++) {
         if (exponent[i]) {
             BigInt accumulator = 1;
             auto utilizer = powers.rbegin();
             BigInt currPow = 1ULL << i;
-            while (utilizer != powers.rend()) {
+            if (utilizer != powers.rend()) {
                 uint mults = currPow / utilizer->first;
                 for (uint j = 0; j < mults; j++) {
                     accumulator *= utilizer->second;
                     accumulator %= N;
                 }
-                assert(currPow%utilizer->first == currPow - mults*utilizer->first);
-                currPow %= utilizer->first;
-                ++utilizer;
             }
-            accumulator *= logPowerMod(base, currPow, N);
-            res %= N;
+            else accumulator *= logPowerMod(base, currPow, N);
             powers[1ULL << i] = accumulator;
             res *= accumulator;
             res %= N;

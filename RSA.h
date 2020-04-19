@@ -15,7 +15,8 @@ private:
     static const uint ePool[];
     static bool peekFromPool(BigInt& e, const BigInt& phi);
 public:
-    static BigInt powerMod(const BigInt& N, const BigInt& base, const std::bitset<sizeof(BigInt)>& exponent, const uint& lastSet);
+
+    static BigInt powerMod(const BigInt& N, const BigInt& base, const std::bitset<sizeof(BigInt)*8>& exponent, const uint& lastSet);
 
     RSA() = delete;
     static void generateKeys(BigInt& N, BigInt& e, BigInt& d);
